@@ -1,0 +1,117 @@
+# 可复用构建流水线：由 monorepo tag 触发，或在本仓库手动 dispatch。
+name: Tag Release (Docker → OSS)
+
+on:
+  workflow_call:
+    secrets:
+      GH_SECRET:
+        required: true
+      OSS_ENDPOINT:
+        required: true
+      OSS_BUCKET:
+        required: true
+      OSS_ACCESS_KEY_ID:
+        required: true
+      OSS_ACCESS_KEY_SECRET:
+        required: true
+      OSS_PREFIX:
+        required: false
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: monorepo 上的 Git tag，例如 appbackend-v0615
+        required: true
+        type: string
+      monorepo:
+        description: 私有 monorepo 仓库（owner/name）
+        required: false
+        default: Zero-Day-Echo/AIExamPlatform
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || github.repository }}
+      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+    steps:
+      - name: Require GH_SECRET
+        run: |
+          if [[ -z "${{ secrets.GH_SECRET }}" ]]; then
+            echo "::error::请配置 Secret「GH_SECRET」：可读取私有 monorepo 及子模块的 PAT。"
+            exit 1
+          fi
+
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MONOREPO }}
+          ref: ${{ env.CHECKOUT_REF }}
+          token: ${{ secrets.GH_SECRET }}
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Parse tag
+        id: meta
+        run: |
+          TAG="${RELEASE_TAG}"
+          echo "release_tag=${TAG}" >> "$GITHUB_ENV"
+          PARSED="$(python3 "${{ github.workspace }}/Builder/scripts/parse_tag.py" "$TAG")"
+          echo "$PARSED" | tee /tmp/parsed.json
+          python3 -c '
+          import json, os
+          data = json.load(open("/tmp/parsed.json"))
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a", encoding="utf-8") as fh:
+              for key in ("project_key", "version", "image_ref", "context", "dockerfile"):
+                  fh.write(f"{key}={data[key]}\n")
+          '
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: |
+          docker build \
+            -f "${{ github.workspace }}/${{ steps.meta.outputs.context }}/${{ steps.meta.outputs.dockerfile }}" \
+            -t "${{ steps.meta.outputs.image_ref }}" \
+            "${{ github.workspace }}/${{ steps.meta.outputs.context }}"
+
+      - name: Export image tarball
+        run: |
+          mkdir -p "${{ github.workspace }}/Builder/dist"
+          ARCHIVE="${{ github.workspace }}/Builder/dist/${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}.tar.gz"
+          docker save "${{ steps.meta.outputs.image_ref }}" | gzip -9 > "$ARCHIVE"
+          ls -lh "$ARCHIVE"
+          echo "archive_path=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Install ossutil
+        run: |
+          curl -fsSL -o ossutil64 https://gosspublic.alicdn.com/ossutil/1.7.18/ossutil64
+          chmod +x ossutil64
+          sudo mv ossutil64 /usr/local/bin/ossutil
+
+      - name: Upload to Aliyun OSS
+        env:
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_PREFIX: ${{ secrets.OSS_PREFIX }}
+        run: |
+          "${{ github.workspace }}/Builder/scripts/upload_oss.sh" \
+            "$archive_path" \
+            "${{ steps.meta.outputs.project_key }}" \
+            "${{ steps.meta.outputs.version }}"
+
+      - name: Upload build artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}
+          path: ${{ env.archive_path }}
+          retention-days: 7

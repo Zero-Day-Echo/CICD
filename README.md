@@ -16,6 +16,17 @@ AIExamPlatform 的 CI/CD 构建子模块（远端仓库：[Zero-Day-Echo/CICD](h
 
 子项目列表见 [`projects.json`](./projects.json)。
 
+## 流水线位置
+
+| 仓库 | 路径 | 作用 |
+|------|------|------|
+| **[Zero-Day-Echo/CICD](https://github.com/Zero-Day-Echo/CICD)** | `.github/workflows/tag-release.yml` | **主构建流水线**（docker build → tar.gz → OSS） |
+| **AIExamPlatform（monorepo）** | `.github/workflows/tag-release.yml` | **触发器**：push tag 时调用 CICD 可复用 workflow |
+
+在 GitHub 上打开 CICD 仓库即可看到 Actions 流水线；也支持在 CICD 仓库 **Actions → Run workflow** 手动填写 tag 试跑。
+
+Tag 打在 **monorepo** 上（例如 `appbackend-v0615`），触发 monorepo workflow → 调用 `Zero-Day-Echo/CICD/.github/workflows/tag-release.yml@main` → 用 `GH_SECRET` checkout 私有根库及子模块后构建。
+
 ## 作为 Git 子模块
 
 Monorepo 根目录挂载路径为 `Builder/`，远端为 **CICD** 仓库：
@@ -28,7 +39,7 @@ git submodule update --init Builder
 git submodule add git@github.com:Zero-Day-Echo/CICD.git Builder
 ```
 
-Tag 打在 **monorepo** 上；根目录 [`.github/workflows/tag-release.yml`](../.github/workflows/tag-release.yml) 会 checkout 子模块并调用 `Builder/scripts/release.sh`。
+本地脚本与配置在本目录；**GitHub Actions 定义在同名远端仓库** `Zero-Day-Echo/CICD` 的 `.github/workflows/` 下。
 
 ## 本地试跑
 
@@ -62,10 +73,23 @@ export OSS_ACCESS_KEY_SECRET=...
 
 ## GitHub Actions Secrets
 
-| Secret | 说明 |
-|--------|------|
-| `OSS_ENDPOINT` | 如 `oss-cn-hangzhou.aliyuncs.com` |
-| `OSS_BUCKET` | Bucket 名称 |
-| `OSS_ACCESS_KEY_ID` | RAM AccessKey |
-| `OSS_ACCESS_KEY_SECRET` | RAM Secret |
-| `OSS_PREFIX` | 可选，默认 `aiexam/docker-images` |
+在 **monorepo（AIExamPlatform）** 与 **CICD** 仓库均可配置（`secrets: inherit` 时以 monorepo 为准；手动在 CICD dispatch 时在 CICD 仓库配置）：
+
+| Secret | 必填 | 说明 |
+|--------|------|------|
+| `GH_SECRET` | **是** | GitHub PAT（classic: `repo`；或 fine-grained：对本 org 下私有仓库只读）。用于 checkout 私有根库及子模块 `Builder`（CICD）、`questionagent` 等 |
+| `OSS_ENDPOINT` | 是 | 如 `oss-cn-hangzhou.aliyuncs.com` |
+| `OSS_BUCKET` | 是 | Bucket 名称 |
+| `OSS_ACCESS_KEY_ID` | 是 | RAM AccessKey |
+| `OSS_ACCESS_KEY_SECRET` | 是 | RAM Secret |
+| `OSS_PREFIX` | 否 | 默认 `aiexam/docker-images` |
+
+### GH_SECRET 说明
+
+Workflow 跑在 monorepo 上（tag 触发），但 `actions/checkout` 开启 `submodules: recursive` 时，**默认 `GITHUB_TOKEN` 不能访问其他私有仓库**。因此需用组织/个人 PAT 写入 `GH_SECRET`：
+
+1. GitHub → Settings → Developer settings → Personal access tokens
+2. 勾选 `repo`（classic）或对 `Zero-Day-Echo/AIExamPlatform`、`Zero-Day-Echo/CICD` 等授予 Contents: Read
+3. 在 monorepo 添加 Secret 名称 **`GH_SECRET`**，值为该 PAT
+
+若根库与子模块均为 public，可去掉 workflow 中的 `GH_SECRET` 校验并改回默认 token（当前按私有仓库配置）。
