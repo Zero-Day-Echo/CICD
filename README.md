@@ -8,6 +8,15 @@ AIExamPlatform 的 CI/CD 构建子模块（远端仓库：[Zero-Day-Echo/CICD](h
 {子项目 key}-{版本}
 ```
 
+**Git tag / 手动输入的 tag 名只用于：**
+
+1. **触发**流水线（monorepo push tag）
+2. 解析**构建哪个子项目**（`appbackend` → `AppBackend/`）
+3. **Docker 镜像 tag**（`appbackend-v0615` → `appbackend:v0615`）
+
+**源码 checkout 固定拉 monorepo 的 `main` 分支**（手动 dispatch 可改 `monorepo_ref`，默认 `main`）。  
+不会、也不应按该 Git tag 去 checkout 代码。
+
 | Git tag | 构建目录 | 镜像 tag | OSS 对象示例 |
 |---------|----------|----------|----------------|
 | `appbackend-v0615` | `AppBackend/` | `appbackend:v0615` | `aiexam/docker-images/appbackend/v0615/appbackend-v0615.tar.gz` |

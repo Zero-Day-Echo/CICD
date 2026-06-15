@@ -1,4 +1,5 @@
 # 可复用构建流水线：由 monorepo tag 触发，或在本仓库手动 dispatch。
+# 代码固定 checkout monorepo 的 main；Git tag / inputs.tag 仅用于解析子项目名与 docker 镜像版本。
 name: Tag Release (Docker → OSS)
 
 on:
@@ -20,13 +21,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: monorepo 上的 Git tag，例如 appbackend-v0615
+        description: 镜像标签名（非 git checkout ref），例如 appbackend-v0615 → 构建 AppBackend，打 tag appbackend:v0615
         required: true
         type: string
       monorepo:
         description: 私有 monorepo 仓库（owner/name）
         required: false
         default: Zero-Day-Echo/AIExamPlatform
+        type: string
+      monorepo_ref:
+        description: checkout 分支或 commit（默认 main）
+        required: false
+        default: main
         type: string
 
 permissions:
@@ -36,9 +42,11 @@ jobs:
   build-and-upload:
     runs-on: ubuntu-latest
     env:
+      # Git tag / 手动输入：只决定「构建哪个子项目 + 镜像 :v 版本」
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || github.repository }}
-      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+      # 源码固定拉 main（或 workflow_dispatch 指定的 monorepo_ref）
+      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo_ref || 'main' }}
     steps:
       - name: Require GH_SECRET
         run: |
@@ -46,6 +54,19 @@ jobs:
             echo "::error::请配置 Secret「GH_SECRET」：可读取私有 monorepo 及子模块的 PAT。"
             exit 1
           fi
+
+      - name: Validate image tag name
+        run: |
+          set -euo pipefail
+          echo "image_tag=${RELEASE_TAG}"
+          echo "checkout ${MONOREPO}@${CHECKOUT_REF}"
+          python3 -c '
+          import os, re, sys
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]-v[0-9A-Za-z.]+", tag):
+              print(f"::error::镜像标签「{tag}」格式应为 project-vVERSION，例如 appbackend-v0615")
+              sys.exit(1)
+          '
 
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -56,7 +77,7 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Parse tag
+      - name: Parse image tag
         id: meta
         run: |
           TAG="${RELEASE_TAG}"
@@ -71,6 +92,7 @@ jobs:
               for key in ("project_key", "version", "image_ref", "context", "dockerfile"):
                   fh.write(f"{key}={data[key]}\n")
           '
+          echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码分支 ${CHECKOUT_REF}）"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
