@@ -1,36 +1,26 @@
-# 可复用构建流水线：由 monorepo tag 触发，或在本仓库手动 dispatch。
-# 代码固定 checkout monorepo 的 main；Git tag / inputs.tag 仅用于解析子项目名与 docker 镜像版本。
+# 流水线仅在 CICD 仓库运行。
+# 在 CICD 打 tag（如 appbackend-v0616）触发构建；源码固定 checkout AIExamPlatform@main；
+# tag 名只用于解析子项目 + docker 镜像版本（appbackend:v0616）。
 name: Tag Release (Docker → OSS)
 
 on:
-  workflow_call:
-    secrets:
-      GH_SECRET:
-        required: true
-      OSS_ENDPOINT:
-        required: true
-      OSS_BUCKET:
-        required: true
-      OSS_ACCESS_KEY_ID:
-        required: true
-      OSS_ACCESS_KEY_SECRET:
-        required: true
-      OSS_PREFIX:
-        required: false
+  push:
+    tags:
+      - "*-v*"
 
   workflow_dispatch:
     inputs:
       tag:
-        description: 镜像标签名（非 git checkout ref），例如 appbackend-v0615 → 构建 AppBackend，打 tag appbackend:v0615
+        description: 镜像标签名，例如 appbackend-v0615
         required: true
         type: string
       monorepo:
-        description: 私有 monorepo 仓库（owner/name）
+        description: 源码 monorepo（owner/name）
         required: false
         default: Zero-Day-Echo/AIExamPlatform
         type: string
       monorepo_ref:
-        description: checkout 分支或 commit（默认 main）
+        description: checkout 分支（默认 main）
         required: false
         default: main
         type: string
@@ -42,16 +32,14 @@ jobs:
   build-and-upload:
     runs-on: ubuntu-latest
     env:
-      # Git tag / 手动输入：只决定「构建哪个子项目 + 镜像 :v 版本」
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-      MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || github.repository }}
-      # 源码固定拉 main（或 workflow_dispatch 指定的 monorepo_ref）
+      MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || 'Zero-Day-Echo/AIExamPlatform' }}
       CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo_ref || 'main' }}
     steps:
       - name: Require GH_SECRET
         run: |
           if [[ -z "${{ secrets.GH_SECRET }}" ]]; then
-            echo "::error::请配置 Secret「GH_SECRET」：可读取私有 monorepo 及子模块的 PAT。"
+            echo "::error::请在 CICD 仓库配置 Secret「GH_SECRET」（可读 AIExamPlatform 及子模块的 PAT）。"
             exit 1
           fi
 
@@ -64,7 +52,7 @@ jobs:
           import os, re, sys
           tag = os.environ["RELEASE_TAG"]
           if not re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]-v[0-9A-Za-z.]+", tag):
-              print(f"::error::镜像标签「{tag}」格式应为 project-vVERSION，例如 appbackend-v0615")
+              print(f"::error::标签「{tag}」格式应为 project-vVERSION，例如 appbackend-v0615")
               sys.exit(1)
           '
 
@@ -76,13 +64,14 @@ jobs:
           token: ${{ secrets.GH_SECRET }}
           submodules: recursive
           fetch-depth: 1
+          path: monorepo
 
       - name: Parse image tag
         id: meta
+        working-directory: monorepo
         run: |
           TAG="${RELEASE_TAG}"
-          echo "release_tag=${TAG}" >> "$GITHUB_ENV"
-          PARSED="$(python3 "${{ github.workspace }}/Builder/scripts/parse_tag.py" "$TAG")"
+          PARSED="$(python3 "${GITHUB_WORKSPACE}/monorepo/Builder/scripts/parse_tag.py" "$TAG")"
           echo "$PARSED" | tee /tmp/parsed.json
           python3 -c '
           import json, os
@@ -92,7 +81,7 @@ jobs:
               for key in ("project_key", "version", "image_ref", "context", "dockerfile"):
                   fh.write(f"{key}={data[key]}\n")
           '
-          echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码分支 ${CHECKOUT_REF}）"
+          echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码 ${MONOREPO}@${CHECKOUT_REF}）"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -100,14 +89,14 @@ jobs:
       - name: Build image
         run: |
           docker build \
-            -f "${{ github.workspace }}/${{ steps.meta.outputs.context }}/${{ steps.meta.outputs.dockerfile }}" \
+            -f "${{ github.workspace }}/monorepo/${{ steps.meta.outputs.context }}/${{ steps.meta.outputs.dockerfile }}" \
             -t "${{ steps.meta.outputs.image_ref }}" \
-            "${{ github.workspace }}/${{ steps.meta.outputs.context }}"
+            "${{ github.workspace }}/monorepo/${{ steps.meta.outputs.context }}"
 
       - name: Export image tarball
         run: |
-          mkdir -p "${{ github.workspace }}/Builder/dist"
-          ARCHIVE="${{ github.workspace }}/Builder/dist/${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}.tar.gz"
+          mkdir -p "${{ github.workspace }}/dist"
+          ARCHIVE="${{ github.workspace }}/dist/${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}.tar.gz"
           docker save "${{ steps.meta.outputs.image_ref }}" | gzip -9 > "$ARCHIVE"
           ls -lh "$ARCHIVE"
           echo "archive_path=$ARCHIVE" >> "$GITHUB_ENV"
@@ -126,7 +115,8 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_PREFIX: ${{ secrets.OSS_PREFIX }}
         run: |
-          "${{ github.workspace }}/Builder/scripts/upload_oss.sh" \
+          MONOREPO_ROOT="${{ github.workspace }}/monorepo"
+          "${MONOREPO_ROOT}/Builder/scripts/upload_oss.sh" \
             "$archive_path" \
             "${{ steps.meta.outputs.project_key }}" \
             "${{ steps.meta.outputs.version }}"
