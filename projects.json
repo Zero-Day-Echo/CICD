@@ -1,0 +1,60 @@
+{
+  "tag_pattern": "^(?P<project>[a-z0-9][a-z0-9-]*[a-z0-9])-(?P<version>v[0-9A-Za-z.]+)$",
+  "projects": {
+    "appbackend": {
+      "context": "AppBackend",
+      "dockerfile": "Dockerfile",
+      "image": "appbackend"
+    },
+    "agentapi": {
+      "context": "AgentAPI",
+      "dockerfile": "Dockerfile",
+      "image": "agentapi"
+    },
+    "importservice": {
+      "context": "ImportService",
+      "dockerfile": "Dockerfile",
+      "image": "importservice"
+    },
+    "managefront": {
+      "context": "ManageFront",
+      "dockerfile": "Dockerfile",
+      "image": "managefront"
+    },
+    "mcp-drawer": {
+      "context": "MCPs/drawer",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-drawer"
+    },
+    "mcp-mermaid-render": {
+      "context": "MCPs/mermaid-render",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-mermaid-render"
+    },
+    "mcp-inpaint-web": {
+      "context": "MCPs/inpaint-web",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-inpaint-web"
+    },
+    "mcp-docx2markdown": {
+      "context": "MCPs/docx2markdown",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-docx2markdown"
+    },
+    "mcp-claude-code-sandbox": {
+      "context": "MCPs/claude-code-sandbox",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-claude-code-sandbox"
+    },
+    "mcp-llm-wiki": {
+      "context": "MCPs/LLM_wiki",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-llm-wiki"
+    },
+    "mcp-deepseek-reasonix-sandbox": {
+      "context": "MCPs",
+      "dockerfile": "deepseek-reasonix-sandbox/Dockerfile",
+      "image": "mcp-deepseek-reasonix-sandbox"
+    }
+  }
+}
