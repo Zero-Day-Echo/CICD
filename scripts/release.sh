@@ -35,8 +35,14 @@ ARCHIVE_PATH="${DIST_DIR}/${ARCHIVE_NAME}"
 mkdir -p "$DIST_DIR"
 
 log "tag=${TAG} project=${PROJECT_KEY} image=${IMAGE_REF}"
-log "docker build -f ${DOCKERFILE_PATH} -t ${IMAGE_REF} ${CONTEXT}"
-docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_REF" "$CONTEXT"
+PLATFORM="${DOCKER_PLATFORM:-}"
+if [[ -n "$PLATFORM" ]]; then
+  log "docker build --platform ${PLATFORM} -f ${DOCKERFILE_PATH} -t ${IMAGE_REF} ${CONTEXT}"
+  docker build --platform "$PLATFORM" -f "$DOCKERFILE_PATH" -t "$IMAGE_REF" "$CONTEXT"
+else
+  log "docker build -f ${DOCKERFILE_PATH} -t ${IMAGE_REF} ${CONTEXT}"
+  docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_REF" "$CONTEXT"
+fi
 
 log "导出镜像 → ${ARCHIVE_PATH}"
 rm -f "$ARCHIVE_PATH"
