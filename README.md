@@ -10,6 +10,7 @@
 2. 在 **CICD 仓库** 打 tag 并 push（或 Actions 手动 Run）
 3. 流水线 checkout **AIExamPlatform@main** 构建镜像
 4. 导出 `tar.gz` 上传 OSS
+5. **自动清理**该子项目在 OSS 上的旧版本目录（每个子项目只保留本次上传的版本）
 
 ## Tag 规则（打在 CICD 仓库）
 
@@ -74,6 +75,10 @@ SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v0616
 | `OSS_ACCESS_KEY_ID` | 是 | RAM AccessKey |
 | `OSS_ACCESS_KEY_SECRET` | 是 | RAM Secret |
 | `OSS_PREFIX` | 否 | 默认 `aiexam/docker-images` |
+| `OSS_CLEANUP_OLD` | 否 | 上传后删除同子项目其它版本目录，默认 `1`；本地保留历史可设 `0` |
+
+上传路径：`{OSS_PREFIX}/{project}/{version}/{project}-{version}.tar.gz`  
+清理规则：上传成功后删除 `{OSS_PREFIX}/{project}/` 下除当前 `version` 外的所有 `v*` 目录。
 
 ## 新增子项目
 

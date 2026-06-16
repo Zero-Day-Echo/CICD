@@ -42,3 +42,8 @@ log "上传 ${ARCHIVE_PATH} → ${DEST}"
 ossutil cp -f "$ARCHIVE_PATH" "$DEST" -c "$CFG"
 
 log "上传成功: ${DEST}"
+
+if [[ "${OSS_CLEANUP_OLD:-1}" != "0" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  OSSUTIL_CONFIG="$CFG" "${SCRIPT_DIR}/cleanup_oss_images.sh" "$PROJECT_KEY" "$VERSION"
+fi

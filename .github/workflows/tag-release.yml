@@ -114,6 +114,7 @@ jobs:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_PREFIX: ${{ secrets.OSS_PREFIX }}
+          OSS_CLEANUP_OLD: "1"
         run: |
           MONOREPO_ROOT="${{ github.workspace }}/monorepo"
           "${MONOREPO_ROOT}/Builder/scripts/upload_oss.sh" \
