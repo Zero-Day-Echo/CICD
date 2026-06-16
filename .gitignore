@@ -1,4 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+
+# 构建产物（release.sh 导出）
 dist/
 *.tar.gz
+*.tar
+
+# 密钥 / 本地配置
 .env
+.env.local
 .ossutilconfig
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# 日志
+*.log

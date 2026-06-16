@@ -16,16 +16,62 @@
 
 ```
 {子项目 key}-{版本}
+all-{版本}          # 全量：一次构建 projects.json 中全部镜像（同版本号）
 ```
+
+### 版本号格式 `v[mmdd][no]`
+
+Docker 镜像 tag（即 tag 中 `-` 后面的 `{版本}` 段）统一采用：
+
+```
+v + MM + DD + [序号]
+```
+
+| 段 | 含义 | 示例 |
+|----|------|------|
+| `v` | 固定前缀 | `v` |
+| `MM` | 月（两位） | `06` → 6 月 |
+| `DD` | 日（两位） | `12` → 12 日 |
+| `[序号]` | 可选；**当天第几次编译**，两位起，从 `01` 递增 | `01` → 当天第 1 次 |
+
+**示例**
+
+| 版本号 | 含义 |
+|--------|------|
+| `v061201` | 6 月 12 日第 **1** 次编译 |
+| `v061202` | 6 月 12 日第 **2** 次编译（同日重发、热修复） |
+| `v0612` | 合法但**不推荐**（未带序号，无法区分同日多次构建） |
+
+完整 Git tag 示例：`appbackend-v061201`、`all-v061201`。
 
 | CICD Git tag | 源码 | Docker 镜像 tag |
 |--------------|------|-----------------|
-| `appbackend-v0616` | `AIExamPlatform@main` | `appbackend:v0616` |
-| `agentapi-v1.2.0` | `AIExamPlatform@main` | `agentapi:v1.2.0` |
+| `appbackend-v061201` | `AIExamPlatform@main` | `appbackend:v061201` |
+| `all-v061201` | `AIExamPlatform@main` | 全部 11 个子项目均为 `:v061201` |
+| `agentapi-v061202` | `AIExamPlatform@main` | `agentapi:v061202` |
 
 Tag 名**不**用于 checkout，只用于：触发流水线、解析子项目、打 Docker 镜像版本。
 
 子项目列表见 [`projects.json`](./projects.json)。
+
+### 全量发布 `all-v****`
+
+适用于日志格式统一、依赖升级等需要**同时重建全部镜像**的场景：
+
+```bash
+cd CICD
+git tag all-v061201
+git push origin all-v061201
+```
+
+或在 Actions 手动 Run，填写 `tag=all-v061201`。
+
+流水线会并行构建（最多 4 路）全部子项目，并分别上传 OSS。节点导入：
+
+```bash
+./k8s/scripts/import-image-from-url.sh all v061201
+IMAGE_TAG=v061201 ./k8s/scripts/deploy-local-images-v0617.sh
+```
 
 ## 触发方式
 
@@ -34,13 +80,13 @@ Tag 名**不**用于 checkout，只用于：触发流水线、解析子项目、
 ```bash
 git clone git@github.com:Zero-Day-Echo/CICD.git
 cd CICD
-git tag appbackend-v0616
-git push origin appbackend-v0616
+git tag appbackend-v061201
+git push origin appbackend-v061201
 ```
 
 ### 方式 B：CICD → Actions → Run workflow
 
-手动填写 `tag`（如 `appbackend-v0616`），无需真的创建 Git tag。
+手动填写 `tag`（如 `appbackend-v061201`），无需真的创建 Git tag。
 
 ## 流水线位置
 
@@ -62,7 +108,8 @@ git submodule update --init Builder
 
 ```bash
 cd AIExamPlatform
-SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v0616
+SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v061201
+SKIP_UPLOAD=1 ./Builder/scripts/release.sh all-v061201   # 全量（耗时较长）
 ```
 
 ## GitHub Secrets（仅配置在 CICD 仓库）
@@ -82,4 +129,4 @@ SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v0616
 
 ## 新增子项目
 
-编辑 `projects.json`，发布时在 **CICD** 打 tag：`my-service-v0615`。
+编辑 `projects.json`，发布时在 **CICD** 打 tag：`my-service-v061201`（版本号见上文 `v[mmdd][no]`）。

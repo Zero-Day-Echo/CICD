@@ -1,6 +1,6 @@
 # 流水线仅在 CICD 仓库运行。
-# 在 CICD 打 tag（如 appbackend-v0616）触发构建；源码固定 checkout AIExamPlatform@main；
-# tag 名只用于解析子项目 + docker 镜像版本（appbackend:v0616）。
+# 在 CICD 打 tag（如 appbackend-v061201 或 all-v061201）触发构建；源码固定 checkout AIExamPlatform@main；
+# 版本号 v[mmdd][no]：v061201 = 6/12 第 1 次编译。tag 名只用于解析子项目 + docker 镜像版本。
 name: Tag Release (Docker → OSS)
 
 on:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 镜像标签名，例如 appbackend-v0615
+        description: 镜像标签名，例如 appbackend-v061201 或 all-v061201（全量）
         required: true
         type: string
       monorepo:
@@ -29,8 +29,11 @@ permissions:
   contents: read
 
 jobs:
-  build-and-upload:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.meta.outputs.mode }}
+      matrix: ${{ steps.meta.outputs.matrix }}
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || 'Zero-Day-Echo/AIExamPlatform' }}
@@ -51,9 +54,12 @@ jobs:
           python3 -c '
           import os, re, sys
           tag = os.environ["RELEASE_TAG"]
-          if not re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]-v[0-9A-Za-z.]+", tag):
-              print(f"::error::标签「{tag}」格式应为 project-vVERSION，例如 appbackend-v0615")
-              sys.exit(1)
+          if re.fullmatch(r"all-v[0-9A-Za-z.]+", tag):
+              sys.exit(0)
+          if re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]-v[0-9A-Za-z.]+", tag):
+              sys.exit(0)
+          print(f"::error::标签「{tag}」格式应为 project-vVERSION 或 all-vVERSION，例如 appbackend-v061201 / all-v061201（版本 v[mmdd][no]）")
+          sys.exit(1)
           '
 
       - name: Checkout monorepo
@@ -66,38 +72,60 @@ jobs:
           fetch-depth: 1
           path: monorepo
 
-      - name: Parse image tag
+      - name: Parse release matrix
         id: meta
         working-directory: monorepo
         run: |
+          set -euo pipefail
           TAG="${RELEASE_TAG}"
           PARSED="$(python3 "${GITHUB_WORKSPACE}/monorepo/Builder/scripts/parse_tag.py" "$TAG")"
           echo "$PARSED" | tee /tmp/parsed.json
-          python3 -c '
-          import json, os
-          data = json.load(open("/tmp/parsed.json"))
-          out = os.environ["GITHUB_OUTPUT"]
-          with open(out, "a", encoding="utf-8") as fh:
-              for key in ("project_key", "version", "image_ref", "context", "dockerfile"):
-                  fh.write(f"{key}={data[key]}\n")
-          '
-          echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码 ${MONOREPO}@${CHECKOUT_REF}）"
+          MODE="$(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["mode"])')"
+          MATRIX="$(python3 "${GITHUB_WORKSPACE}/monorepo/Builder/scripts/parse_release_matrix.py" "$TAG")"
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "matrix<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          if [[ "$MODE" == "all" ]]; then
+            echo "全量构建 ${TAG}，子项目数: $(echo "$MATRIX" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+          else
+            echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码 ${MONOREPO}@${CHECKOUT_REF}）"
+          fi
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  build-and-upload:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    env:
+      MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || 'Zero-Day-Echo/AIExamPlatform' }}
+      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo_ref || 'main' }}
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MONOREPO }}
+          ref: ${{ env.CHECKOUT_REF }}
+          token: ${{ secrets.GH_SECRET }}
+          submodules: recursive
+          fetch-depth: 1
+          path: monorepo
 
-      - name: Build image
+      - name: Build image (${{ matrix.project_key }})
         run: |
           docker build \
-            -f "${{ github.workspace }}/monorepo/${{ steps.meta.outputs.context }}/${{ steps.meta.outputs.dockerfile }}" \
-            -t "${{ steps.meta.outputs.image_ref }}" \
-            "${{ github.workspace }}/monorepo/${{ steps.meta.outputs.context }}"
+            -f "${{ github.workspace }}/monorepo/${{ matrix.context }}/${{ matrix.dockerfile }}" \
+            -t "${{ matrix.image_ref }}" \
+            "${{ github.workspace }}/monorepo/${{ matrix.context }}"
 
       - name: Export image tarball
         run: |
           mkdir -p "${{ github.workspace }}/dist"
-          ARCHIVE="${{ github.workspace }}/dist/${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}.tar.gz"
-          docker save "${{ steps.meta.outputs.image_ref }}" | gzip -9 > "$ARCHIVE"
+          ARCHIVE="${{ github.workspace }}/dist/${{ matrix.project_key }}-${{ matrix.version }}.tar.gz"
+          docker save "${{ matrix.image_ref }}" | gzip -9 > "$ARCHIVE"
           ls -lh "$ARCHIVE"
           echo "archive_path=$ARCHIVE" >> "$GITHUB_ENV"
 
@@ -119,12 +147,12 @@ jobs:
           MONOREPO_ROOT="${{ github.workspace }}/monorepo"
           "${MONOREPO_ROOT}/Builder/scripts/upload_oss.sh" \
             "$archive_path" \
-            "${{ steps.meta.outputs.project_key }}" \
-            "${{ steps.meta.outputs.version }}"
+            "${{ matrix.project_key }}" \
+            "${{ matrix.version }}"
 
       - name: Upload build artifact (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-${{ steps.meta.outputs.project_key }}-${{ steps.meta.outputs.version }}
+          name: docker-image-${{ matrix.project_key }}-${{ matrix.version }}
           path: ${{ env.archive_path }}
           retention-days: 7
