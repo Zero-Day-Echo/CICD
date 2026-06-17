@@ -110,7 +110,16 @@ git submodule update --init Builder
 cd AIExamPlatform
 SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v061201
 SKIP_UPLOAD=1 ./Builder/scripts/release.sh all-v061201   # 全量（耗时较长）
+SKIP_UPLOAD=1 ./Builder/scripts/release.sh managefront-v061703
 ```
+
+本地 `release.sh` 与 CICD 流水线 `tag-release.yml` 均从 `projects.json` 读取 `build_args`（managefront 的 `VITE_*` 域名在此配置）。
+
+### ManageFront 生产 API 域名
+
+`VITE_*` 在 **docker build** 时编译进静态 JS，运行时改 K8s ConfigMap 无效。流水线构建 managefront 时会自动传入 `projects.json` → `managefront.build_args`；同时 `ManageFront/.env.production` 作为兜底。
+
+改域名时同步：`ManageFront/.env.production`、`projects.json`（`build_args`）、`k8s/configmap-common.yaml`（对照文档），然后在 **CICD** 打 tag 重编 managefront。
 
 ## GitHub Secrets（仅配置在 CICD 仓库）
 

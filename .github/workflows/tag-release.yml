@@ -116,10 +116,28 @@ jobs:
 
       - name: Build image (${{ matrix.project_key }})
         run: |
+          set -euo pipefail
+          DOCKER_BUILD_ARGS=()
+          while IFS=$'\t' read -r arg_key arg_val; do
+            [[ -n "$arg_key" ]] || continue
+            DOCKER_BUILD_ARGS+=(--build-arg "${arg_key}=${arg_val}")
+            echo "build-arg ${arg_key}=${arg_val}"
+          done < <(
+            python3 -c '
+          import json, os
+          raw = os.environ.get("BUILD_ARGS_JSON", "{}")
+          args = json.loads(raw) if raw.strip() else {}
+          for k, v in args.items():
+              print(f"{k}\t{v}")
+          ' 
+          )
           docker build \
+            "${DOCKER_BUILD_ARGS[@]}" \
             -f "${{ github.workspace }}/monorepo/${{ matrix.context }}/${{ matrix.dockerfile }}" \
             -t "${{ matrix.image_ref }}" \
             "${{ github.workspace }}/monorepo/${{ matrix.context }}"
+        env:
+          BUILD_ARGS_JSON: ${{ toJson(matrix.build_args) }}
 
       - name: Export image tarball
         run: |

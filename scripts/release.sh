@@ -38,13 +38,30 @@ build_one() {
   mkdir -p "$DIST_DIR"
 
   log "project=${project_key} image=${image_ref}"
+
+  local -a docker_build_args=()
+  while IFS=$'\t' read -r arg_key arg_val; do
+    [[ -n "$arg_key" ]] || continue
+    docker_build_args+=(--build-arg "${arg_key}=${arg_val}")
+    log "build-arg ${arg_key}=${arg_val}"
+  done < <(
+    python3 -c '
+import json, sys
+from pathlib import Path
+cfg = json.loads((Path(sys.argv[1]) / "projects.json").read_text())
+args = cfg["projects"].get(sys.argv[2], {}).get("build_args") or {}
+for k, v in args.items():
+    print(f"{k}\t{v}")
+' "${BUILDER}" "${project_key}"
+  )
+
   local platform="${DOCKER_PLATFORM:-}"
   if [[ -n "$platform" ]]; then
     log "docker build --platform ${platform} -f ${dockerfile_path} -t ${image_ref} ${context}"
-    docker build --platform "$platform" -f "$dockerfile_path" -t "$image_ref" "$context"
+    docker build --platform "$platform" "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
   else
     log "docker build -f ${dockerfile_path} -t ${image_ref} ${context}"
-    docker build -f "$dockerfile_path" -t "$image_ref" "$context"
+    docker build "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
   fi
 
   log "导出镜像 → ${archive_path}"

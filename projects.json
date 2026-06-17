@@ -20,7 +20,14 @@
     "managefront": {
       "context": "ManageFront",
       "dockerfile": "Dockerfile",
-      "image": "managefront"
+      "image": "managefront",
+      "build_args": {
+        "VITE_APP_BACKEND_URL": "https://api.zhiyan.zeroecho.cn",
+        "VITE_AGENT_API_URL": "https://agentapi.zhiyan.zeroecho.cn",
+        "VITE_IMPORT_API_URL": "https://import.zhiyan.zeroecho.cn",
+        "VITE_WIKI_API_URL": "",
+        "VITE_GRAFANA_BASE_URL": "/grafana"
+      }
     },
     "mcp-drawer": {
       "context": "MCPs/drawer",

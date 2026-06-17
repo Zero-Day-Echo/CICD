@@ -31,16 +31,18 @@ def normalize_tag(raw: str) -> str:
     return tag
 
 
-def project_entry(project_key: str, version: str, project: dict[str, str]) -> dict[str, str]:
+def project_entry(project_key: str, version: str, project: dict[str, Any]) -> dict[str, Any]:
     image_name = project["image"]
-    return {
+    entry: dict[str, Any] = {
         "project_key": project_key,
         "version": version,
         "image_name": image_name,
         "image_ref": f"{image_name}:{version}",
         "context": project["context"],
         "dockerfile": project["dockerfile"],
+        "build_args": project.get("build_args") or {},
     }
+    return entry
 
 
 def parse_single(tag: str, config: dict[str, Any]) -> dict[str, Any]:
@@ -91,7 +93,7 @@ def parse_tag(tag: str) -> dict[str, Any]:
     return parse_single(normalized, config)
 
 
-def build_matrix(parsed: dict[str, Any]) -> list[dict[str, str]]:
+def build_matrix(parsed: dict[str, Any]) -> list[dict[str, Any]]:
     if parsed["mode"] == "all":
         return parsed["projects"]
     return [
@@ -102,6 +104,7 @@ def build_matrix(parsed: dict[str, Any]) -> list[dict[str, str]]:
             "image_ref": parsed["image_ref"],
             "context": parsed["context"],
             "dockerfile": parsed["dockerfile"],
+            "build_args": parsed.get("build_args") or {},
         }
     ]
 
