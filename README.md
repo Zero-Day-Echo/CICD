@@ -17,6 +17,7 @@
 ```
 {子项目 key}-{版本}
 all-{版本}          # 全量：一次构建 projects.json 中全部镜像（同版本号）
+services-{版本}     # 平台四服务：appbackend / agentapi / managefront / importservice
 ```
 
 ### 版本号格式 `v[mmdd][no]`
@@ -42,12 +43,13 @@ v + MM + DD + [序号]
 | `v061202` | 6 月 12 日第 **2** 次编译（同日重发、热修复） |
 | `v0612` | 合法但**不推荐**（未带序号，无法区分同日多次构建） |
 
-完整 Git tag 示例：`appbackend-v061201`、`all-v061201`。
+完整 Git tag 示例：`appbackend-v061201`、`all-v061201`、`services-v061201`。
 
 | CICD Git tag | 源码 | Docker 镜像 tag |
 |--------------|------|-----------------|
 | `appbackend-v061201` | `AIExamPlatform@main` | `appbackend:v061201` |
-| `all-v061201` | `AIExamPlatform@main` | 全部 11 个子项目均为 `:v061201` |
+| `all-v061201` | `AIExamPlatform@main` | 全部 12 个子项目均为 `:v061201` |
+| `services-v061201` | `AIExamPlatform@main` | 上述 4 个平台服务均为 `:v061201` |
 | `agentapi-v061202` | `AIExamPlatform@main` | `agentapi:v061202` |
 
 Tag 名**不**用于 checkout，只用于：触发流水线、解析子项目、打 Docker 镜像版本。
@@ -71,6 +73,24 @@ git push origin all-v061201
 ```bash
 ./k8s/scripts/import-image-from-url.sh all v061201
 IMAGE_TAG=v061201 ./k8s/scripts/deploy-local-images-v0617.sh
+```
+
+### 平台四服务 `services-v****`
+
+日常发版只改 AppBackend / AgentAPI / ManageFront / ImportService 时使用（**不含 MCP**）：
+
+```bash
+cd CICD
+git tag services-v062301
+git push origin services-v062301
+```
+
+子项目列表见 `projects.json` → `tag_groups.services`（默认上述四个）。
+
+节点只导入平台镜像：
+
+```bash
+./k8s/scripts/import-image-from-url.sh services v062301
 ```
 
 ## 触发方式
@@ -109,7 +129,8 @@ git submodule update --init Builder
 ```bash
 cd AIExamPlatform
 SKIP_UPLOAD=1 ./Builder/scripts/release.sh appbackend-v061201
-SKIP_UPLOAD=1 ./Builder/scripts/release.sh all-v061201   # 全量（耗时较长）
+SKIP_UPLOAD=1 ./Builder/scripts/release.sh all-v061201      # 全量（耗时较长）
+SKIP_UPLOAD=1 ./Builder/scripts/release.sh services-v062301 # 平台四服务
 SKIP_UPLOAD=1 ./Builder/scripts/release.sh managefront-v061703
 ```
 

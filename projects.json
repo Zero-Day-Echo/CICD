@@ -1,6 +1,9 @@
 {
   "_versioning": "镜像版本 v[mmdd][no]：v + 月(2) + 日(2) + 当天编译序号(2起)。例 v061201 = 6月12日第1次",
   "tag_pattern": "^(?P<project>[a-z0-9][a-z0-9-]*[a-z0-9])-(?P<version>v[0-9A-Za-z.]+)$",
+  "tag_groups": {
+    "services": ["appbackend", "agentapi", "managefront", "importservice"]
+  },
   "projects": {
     "appbackend": {
       "context": "AppBackend",
@@ -38,6 +41,11 @@
       "context": "MCPs/mermaid-render",
       "dockerfile": "Dockerfile",
       "image": "mcp-mermaid-render"
+    },
+    "mcp-katex-scan": {
+      "context": "MCPs/katex-scan",
+      "dockerfile": "Dockerfile",
+      "image": "mcp-katex-scan"
     },
     "mcp-inpaint-web": {
       "context": "MCPs/inpaint-web",

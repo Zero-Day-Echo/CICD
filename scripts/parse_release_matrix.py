@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""输出 GitHub Actions matrix JSON（单项目 1 项，all-v* 展开全部子项目）。"""
+"""输出 GitHub Actions matrix JSON（单项目 1 项，all-v* / services-v* 展开子项目列表）。"""
 
 from __future__ import annotations
 

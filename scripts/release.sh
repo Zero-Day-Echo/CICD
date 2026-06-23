@@ -3,6 +3,7 @@
 # 用法:
 #   ./Builder/scripts/release.sh appbackend-v061201
 #   ./Builder/scripts/release.sh all-v061201        # 全量；版本 v[mmdd][no]
+#   ./Builder/scripts/release.sh services-v061201 # 平台四服务
 #   GIT_TAG=all-v061201 ./Builder/scripts/release.sh
 set -euo pipefail
 
@@ -19,7 +20,7 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令: $1"
 }
 
-[[ -n "$TAG" ]] || die "请提供 tag，例如 appbackend-v061201 或 all-v061201"
+[[ -n "$TAG" ]] || die "请提供 tag，例如 appbackend-v061201、all-v061201 或 services-v061201"
 
 build_one() {
   local project_key="$1"
@@ -58,10 +59,18 @@ for k, v in args.items():
   local platform="${DOCKER_PLATFORM:-}"
   if [[ -n "$platform" ]]; then
     log "docker build --platform ${platform} -f ${dockerfile_path} -t ${image_ref} ${context}"
-    docker build --platform "$platform" "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
+    if ((${#docker_build_args[@]})); then
+      docker build --platform "$platform" "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
+    else
+      docker build --platform "$platform" -f "$dockerfile_path" -t "$image_ref" "$context"
+    fi
   else
     log "docker build -f ${dockerfile_path} -t ${image_ref} ${context}"
-    docker build "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
+    if ((${#docker_build_args[@]})); then
+      docker build "${docker_build_args[@]}" -f "$dockerfile_path" -t "$image_ref" "$context"
+    else
+      docker build -f "$dockerfile_path" -t "$image_ref" "$context"
+    fi
   fi
 
   log "导出镜像 → ${archive_path}"
@@ -78,12 +87,12 @@ for k, v in args.items():
   log "完成: ${image_ref} → OSS"
 }
 
-release_all() {
+release_batch() {
   local matrix_json
   matrix_json="$("${BUILDER}/scripts/parse_release_matrix.py" "$TAG")" || exit 1
   local count
   count="$(echo "$matrix_json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
-  log "全量构建 tag=${TAG}，共 ${count} 个子项目"
+  log "批量构建 tag=${TAG}，共 ${count} 个子项目"
 
   while IFS=$'\t' read -r project_key version image_ref context_rel dockerfile_rel; do
     log "===== ${project_key}-${version} ====="
@@ -111,9 +120,9 @@ main() {
   parsed="$("${BUILDER}/scripts/parse_tag.py" "$TAG")" || exit 1
   mode="$(echo "$parsed" | python3 -c 'import json,sys; print(json.load(sys.stdin)["mode"])')"
 
-  if [[ "$mode" == "all" ]]; then
-    release_all
-    log "全量构建完成: ${TAG}"
+  if [[ "$mode" == "all" || "$mode" == "services" ]]; then
+    release_batch
+    log "批量构建完成: ${TAG}"
     return 0
   fi
 

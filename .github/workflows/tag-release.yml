@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 镜像标签名，例如 appbackend-v061201 或 all-v061201（全量）
+        description: 镜像标签名，例如 appbackend-v061201、all-v061201（全量）或 services-v061201（平台四服务）
         required: true
         type: string
       monorepo:
@@ -54,11 +54,11 @@ jobs:
           python3 -c '
           import os, re, sys
           tag = os.environ["RELEASE_TAG"]
-          if re.fullmatch(r"all-v[0-9A-Za-z.]+", tag):
+          if re.fullmatch(r"all-v[0-9A-Za-z.]+", tag) or re.fullmatch(r"services-v[0-9A-Za-z.]+", tag):
               sys.exit(0)
           if re.fullmatch(r"[a-z0-9][a-z0-9-]*[a-z0-9]-v[0-9A-Za-z.]+", tag):
               sys.exit(0)
-          print(f"::error::标签「{tag}」格式应为 project-vVERSION 或 all-vVERSION，例如 appbackend-v061201 / all-v061201（版本 v[mmdd][no]）")
+          print(f"::error::标签「{tag}」格式应为 project-vVERSION、all-vVERSION 或 services-vVERSION，例如 appbackend-v061201 / all-v061201 / services-v061201（版本 v[mmdd][no]）")
           sys.exit(1)
           '
 
@@ -86,8 +86,8 @@ jobs:
           echo "matrix<<EOF" >> "$GITHUB_OUTPUT"
           echo "$MATRIX" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          if [[ "$MODE" == "all" ]]; then
-            echo "全量构建 ${TAG}，子项目数: $(echo "$MATRIX" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+          if [[ "$MODE" == "all" || "$MODE" == "services" ]]; then
+            echo "批量构建 ${TAG}（mode=${MODE}），子项目数: $(echo "$MATRIX" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
           else
             echo "将构建 $(python3 -c 'import json; print(json.load(open("/tmp/parsed.json"))["image_ref"])')（源码 ${MONOREPO}@${CHECKOUT_REF}）"
           fi
