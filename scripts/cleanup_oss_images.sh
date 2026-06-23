@@ -16,8 +16,8 @@ OSS_ENDPOINT="${OSS_ENDPOINT:?OSS_ENDPOINT}"
 OSS_BUCKET="${OSS_BUCKET:?OSS_BUCKET}"
 OSS_ACCESS_KEY_ID="${OSS_ACCESS_KEY_ID:?OSS_ACCESS_KEY_ID}"
 OSS_ACCESS_KEY_SECRET="${OSS_ACCESS_KEY_SECRET:?OSS_ACCESS_KEY_SECRET}"
-OSS_PREFIX="${OSS_PREFIX:-aiexam/docker-images}"
-[[ -n "$OSS_PREFIX" ]] || OSS_PREFIX="aiexam/docker-images"
+OSS_PREFIX="${OSS_PREFIX:-aiexam}"
+[[ -n "$OSS_PREFIX" ]] || OSS_PREFIX="aiexam"
 
 log() { echo "[builder/oss-cleanup] $*"; }
 warn() { echo "[builder/oss-cleanup] WARN: $*" >&2; }

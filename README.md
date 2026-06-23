@@ -151,7 +151,7 @@ SKIP_UPLOAD=1 ./Builder/scripts/release.sh managefront-v061703
 | `OSS_BUCKET` | 是 | Bucket 名称 |
 | `OSS_ACCESS_KEY_ID` | 是 | RAM AccessKey |
 | `OSS_ACCESS_KEY_SECRET` | 是 | RAM Secret |
-| `OSS_PREFIX` | 否 | 默认 `aiexam/docker-images` |
+| `OSS_PREFIX` | 否 | 默认 `aiexam`（与 `k8s/scripts/import-image-from-url.sh` 一致） |
 | `OSS_CLEANUP_OLD` | 否 | 上传后删除同子项目其它版本目录，默认 `1`；本地保留历史可设 `0` |
 
 上传路径：`{OSS_PREFIX}/{project}/{version}/{project}-{version}.tar.gz`  
