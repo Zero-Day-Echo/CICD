@@ -57,6 +57,11 @@
       "dockerfile": "Dockerfile",
       "image": "mcp-docx2markdown"
     },
+    "mcp-paper-export": {
+      "context": ".",
+      "dockerfile": "MCPs/paper-export/Dockerfile",
+      "image": "mcp-paper-export"
+    },
     "mcp-claude-code-sandbox": {
       "context": "MCPs/claude-code-sandbox",
       "dockerfile": "Dockerfile",

@@ -48,7 +48,7 @@ v + MM + DD + [序号]
 | CICD Git tag | 源码 | Docker 镜像 tag |
 |--------------|------|-----------------|
 | `appbackend-v061201` | `AIExamPlatform@main` | `appbackend:v061201` |
-| `all-v061201` | `AIExamPlatform@main` | 全部 12 个子项目均为 `:v061201` |
+| `all-v061201` | `AIExamPlatform@main` | 全部 13 个子项目均为 `:v061201` |
 | `services-v061201` | `AIExamPlatform@main` | 上述 4 个平台服务均为 `:v061201` |
 | `agentapi-v061202` | `AIExamPlatform@main` | `agentapi:v061202` |
 
