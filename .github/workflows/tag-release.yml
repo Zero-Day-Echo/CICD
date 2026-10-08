@@ -7,6 +7,7 @@ on:
   push:
     tags:
       - "*-v*"
+      - "!dsh-agent-api-v*"
 
   workflow_dispatch:
     inputs:

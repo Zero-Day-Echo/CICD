@@ -1,0 +1,106 @@
+name: DSH dependency (Docker → OSS)
+
+on:
+  push:
+    tags:
+      - 'dsh-agent-api-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 独立镜像版本，例如 v100801
+        required: true
+        type: string
+      dsh_commit:
+        description: 已验收的 DSH 完整提交 SHA
+        required: true
+        default: b24647c6217cfaa5122cb034883bef8f51d668f9
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-dependency-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ inputs.version }}
+      DSH_COMMIT: ${{ inputs.dsh_commit || 'b24647c6217cfaa5122cb034883bef8f51d668f9' }}
+    steps:
+      - name: Resolve release version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$EVENT_NAME" == push ]]; then
+            echo "VERSION=${RELEASE_TAG#dsh-agent-api-}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Validate inputs and existing credentials
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRET }}
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^v[0-9A-Za-z.]+$ ]]
+          [[ "$DSH_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          for name in GH_TOKEN OSS_ENDPOINT OSS_BUCKET OSS_ACCESS_KEY_ID OSS_ACCESS_KEY_SECRET; do
+            [[ -n "${!name}" ]] || { echo "::error::Missing existing Secret: $name"; exit 1; }
+          done
+
+      - name: Checkout existing distribution scripts
+        uses: actions/checkout@v4
+        with:
+          path: cicd
+          persist-credentials: false
+
+      - name: Checkout verified DSH source
+        uses: actions/checkout@v4
+        with:
+          repository: Zero-Day-Echo/dsh-agent-api
+          ref: ${{ env.DSH_COMMIT }}
+          token: ${{ secrets.GH_SECRET }}
+          path: dsh
+          persist-credentials: false
+
+      - name: Build and export amd64 image
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C dsh rev-parse HEAD)" == "$DSH_COMMIT" ]]
+          docker build --platform linux/amd64 -t "dsh-agent-api:$VERSION" dsh
+          mkdir -p dist
+          docker save "dsh-agent-api:$VERSION" | gzip > "dist/dsh-agent-api-$VERSION.tar.gz"
+          sha256sum "dist/dsh-agent-api-$VERSION.tar.gz" | tee dist/SHA256SUMS
+          docker image inspect "dsh-agent-api:$VERSION" --format '{{.Id}} {{.Architecture}}'
+
+      - name: Install existing OSS uploader dependency
+        run: |
+          curl -fsSL -o ossutil https://gosspublic.alicdn.com/ossutil/1.7.18/ossutil64
+          chmod +x ossutil
+          sudo mv ossutil /usr/local/bin/ossutil
+
+      - name: Upload through existing OSS flow
+        env:
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_PREFIX: ${{ secrets.OSS_PREFIX }}
+          OSS_CLEANUP_OLD: '0'
+        run: bash cicd/scripts/upload_oss.sh "dist/dsh-agent-api-$VERSION.tar.gz" dsh-agent-api "$VERSION"
+
+      - name: Preserve deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-agent-api-${{ env.VERSION }}
+          path: dist/
+          retention-days: 7

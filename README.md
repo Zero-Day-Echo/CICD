@@ -160,3 +160,18 @@ SKIP_UPLOAD=1 ./Builder/scripts/release.sh managefront-v061703
 ## 新增子项目
 
 编辑 `projects.json`，发布时在 **CICD** 打 tag：`my-service-v061201`（版本号见上文 `v[mmdd][no]`）。
+
+## DSH 独立发布
+
+在 **CICD** 仓库推送 `dsh-agent-api-v100801` 这样的 tag，触发
+`dsh-dependency-release.yml`。它从 `Zero-Day-Echo/dsh-agent-api` 检出固定的完整
+提交 SHA，构建 linux/amd64 镜像，复用现有 `GH_SECRET` 和 `OSS_*` Secrets 上传。
+`GH_SECRET` 需有 DSH 仓库读取权限，不新增专用密钥。
+
+后续发布先更新该工作流的默认 `dsh_commit` 及 tag 路径的 `DSH_COMMIT` 固定 SHA，
+再提交并推送新的版本 tag。手动触发也可指定完整 SHA 和版本。
+不覆盖已发布版本；本流程保留旧 OSS 版本，并保留 7 天构建产物和 SHA256 校验文件。
+
+产物位置为 `{OSS_PREFIX}/dsh-agent-api/{version}/dsh-agent-api-{version}.tar.gz`。
+流程只构建和分发，不部署 Kubernetes，不合并 AIExamPlatform、不为业务仓库打 tag，
+也不切换线上 AgentAPI。OpenViking 使用官方固定摘要镜像，不重复打包。
