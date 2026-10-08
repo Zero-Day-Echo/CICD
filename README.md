@@ -165,8 +165,9 @@ SKIP_UPLOAD=1 ./Builder/scripts/release.sh managefront-v061703
 
 在 **CICD** 仓库推送 `dsh-agent-api-v100801` 这样的 tag，触发
 `dsh-dependency-release.yml`。它从 `Zero-Day-Echo/dsh-agent-api` 检出固定的完整
-提交 SHA，构建 linux/amd64 镜像，复用现有 `GH_SECRET` 和 `OSS_*` Secrets 上传。
-`GH_SECRET` 需有 DSH 仓库读取权限，不新增专用密钥。
+提交 SHA，构建 linux/amd64 镜像，通过 `DSH_GH_TOKEN` 读取 DSH 源码，复用现有 `OSS_*` Secrets 上传。
+`DSH_GH_TOKEN` 仅需 DSH 仓库的 Contents 读取权限；业务发布的 `GH_SECRET` 保持不变。
+Secret 保存一次即可自动用于后续发版，过期或撤销后需更新。
 
 后续发布先更新该工作流的默认 `dsh_commit` 及 tag 路径的 `DSH_COMMIT` 固定 SHA，
 再提交并推送新的版本 tag。手动触发也可指定完整 SHA 和版本。

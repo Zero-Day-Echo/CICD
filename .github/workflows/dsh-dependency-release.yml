@@ -42,7 +42,7 @@ jobs:
 
       - name: Validate inputs and existing credentials
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRET }}
+          DSH_GH_TOKEN: ${{ secrets.DSH_GH_TOKEN }}
           OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
           OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           [[ "$VERSION" =~ ^v[0-9A-Za-z.]+$ ]]
           [[ "$DSH_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          for name in GH_TOKEN OSS_ENDPOINT OSS_BUCKET OSS_ACCESS_KEY_ID OSS_ACCESS_KEY_SECRET; do
+          for name in DSH_GH_TOKEN OSS_ENDPOINT OSS_BUCKET OSS_ACCESS_KEY_ID OSS_ACCESS_KEY_SECRET; do
             [[ -n "${!name}" ]] || { echo "::error::Missing existing Secret: $name"; exit 1; }
           done
 
@@ -67,7 +67,7 @@ jobs:
         with:
           repository: Zero-Day-Echo/dsh-agent-api
           ref: ${{ env.DSH_COMMIT }}
-          token: ${{ secrets.GH_SECRET }}
+          token: ${{ secrets.DSH_GH_TOKEN }}
           path: dsh
           persist-credentials: false
 
