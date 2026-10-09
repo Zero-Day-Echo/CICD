@@ -119,6 +119,10 @@ jobs:
         run: |
           set -euo pipefail
           DOCKER_BUILD_ARGS=()
+          if [[ "${{ matrix.project_key }}" == agentapi ]]; then
+            test -n "$GH_TOKEN"
+            DOCKER_BUILD_ARGS+=(--secret id=github_token,env=GH_TOKEN)
+          fi
           while IFS=$'\t' read -r arg_key arg_val; do
             [[ -n "$arg_key" ]] || continue
             DOCKER_BUILD_ARGS+=(--build-arg "${arg_key}=${arg_val}")
@@ -139,6 +143,7 @@ jobs:
             "${{ github.workspace }}/monorepo/${{ matrix.context }}"
         env:
           BUILD_ARGS_JSON: ${{ toJson(matrix.build_args) }}
+          GH_TOKEN: ${{ secrets.GH_SECRET }}
 
       - name: Export image tarball
         run: |

@@ -41,6 +41,10 @@ build_one() {
   log "project=${project_key} image=${image_ref}"
 
   local -a docker_build_args=()
+  if [[ "$project_key" == agentapi ]]; then
+    [[ -n "${GH_TOKEN:-}" ]] || die "AgentAPI 构建需要 GH_TOKEN（可读 Git SDK）；通过 BuildKit Secret 传入"
+    docker_build_args+=(--secret id=github_token,env=GH_TOKEN)
+  fi
   while IFS=$'\t' read -r arg_key arg_val; do
     [[ -n "$arg_key" ]] || continue
     docker_build_args+=(--build-arg "${arg_key}=${arg_val}")
