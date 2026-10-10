@@ -133,11 +133,13 @@ jobs:
           ' 
           )
           docker build \
+            --secret id=github_token,env=GH_SECRET \
             "${DOCKER_BUILD_ARGS[@]}" \
             -f "${{ github.workspace }}/monorepo/${{ matrix.context }}/${{ matrix.dockerfile }}" \
             -t "${{ matrix.image_ref }}" \
             "${{ github.workspace }}/monorepo/${{ matrix.context }}"
         env:
+          GH_SECRET: ${{ secrets.GH_SECRET }}
           BUILD_ARGS_JSON: ${{ toJson(matrix.build_args) }}
 
       - name: Export image tarball
