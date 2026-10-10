@@ -42,8 +42,14 @@ build_one() {
 
   local -a docker_build_args=()
   if [[ "$project_key" == agentapi ]]; then
-    [[ -n "${GH_TOKEN:-}" ]] || die "AgentAPI 构建需要 GH_TOKEN（可读 Git SDK）；通过 BuildKit Secret 传入"
-    docker_build_args+=(--secret id=github_token,env=GH_TOKEN)
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+      docker_build_args+=(--secret id=github_token,env=GH_TOKEN)
+    else
+      local ssh_identity="${BUILD_SSH_IDENTITY:-${SSH_AUTH_SOCK:-}}"
+      local known_hosts="${BUILD_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
+      [[ -n "$ssh_identity" && -e "$ssh_identity" && -s "$known_hosts" ]] || die "AgentAPI 本地构建需 BUILD_SSH_IDENTITY（已有私钥或 agent socket）和可信 known_hosts；也可用 GH_TOKEN"
+      docker_build_args+=(--ssh "default=${ssh_identity}" --secret "id=github_known_hosts,src=${known_hosts}")
+    fi
   fi
   while IFS=$'\t' read -r arg_key arg_val; do
     [[ -n "$arg_key" ]] || continue
