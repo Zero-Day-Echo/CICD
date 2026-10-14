@@ -13,7 +13,7 @@ on:
       dsh_commit:
         description: 已验收的 DSH 完整提交 SHA
         required: true
-        default: b24647c6217cfaa5122cb034883bef8f51d668f9
+        default: 9fbb8482a8df90b1a80510a186409f1add3c317d
         type: string
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 30
     env:
       VERSION: ${{ inputs.version }}
-      DSH_COMMIT: ${{ inputs.dsh_commit || 'b24647c6217cfaa5122cb034883bef8f51d668f9' }}
+      DSH_COMMIT: ${{ inputs.dsh_commit || '9fbb8482a8df90b1a80510a186409f1add3c317d' }}
     steps:
       - name: Resolve release version
         env:
