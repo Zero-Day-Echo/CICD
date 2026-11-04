@@ -176,3 +176,14 @@ Secret 保存一次即可自动用于后续发版，过期或撤销后需更新�
 产物位置为 `{OSS_PREFIX}/dsh-agent-api/{version}/dsh-agent-api-{version}.tar.gz`。
 流程只构建和分发，不部署 Kubernetes，不合并 AIExamPlatform、不为业务仓库打 tag，
 也不切换线上 AgentAPI。OpenViking 使用官方固定摘要镜像，不重复打包。
+
+### 固定源码的 tag 发布
+
+需要发布已验证的指定提交时，在 CICD 仓库使用附注 tag：
+
+```bash
+git tag -a appbackend-v110407 -m 'source-ref: <AIExamPlatform 的完整提交 SHA>'
+git push origin appbackend-v110407
+```
+
+流水线从 tag 附注读取业务源码 SHA，prepare 和全部镜像构建使用同一提交。普通轻量 tag、未带 `source-ref` 的旧附注 tag 继续按 main 构建；该次 prepare 实际检出的提交也会冻结给构建任务。手动触发仍可使用 `monorepo_ref`。

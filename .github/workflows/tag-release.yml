@@ -1,5 +1,5 @@
 # 流水线仅在 CICD 仓库运行。
-# 在 CICD 打 tag（如 appbackend-v061201 或 all-v061201）触发构建；源码固定 checkout AIExamPlatform@main；
+# 在 CICD 打 tag 触发构建；附注 source-ref: <完整 SHA> 可固定业务源码，未指定时兼容 main。
 # 版本号 v[mmdd][no]：v061201 = 6/12 第 1 次编译。tag 名只用于解析子项目 + docker 镜像版本。
 name: Tag Release (Docker → OSS)
 
@@ -35,11 +35,21 @@ jobs:
     outputs:
       mode: ${{ steps.meta.outputs.mode }}
       matrix: ${{ steps.meta.outputs.matrix }}
+      source_commit: ${{ steps.source.outputs.commit }}
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || 'Zero-Day-Echo/AIExamPlatform' }}
       CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo_ref || 'main' }}
     steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v4
+        with:
+          path: cicd-metadata
+          fetch-depth: 1
+
+      - name: Resolve annotated source reference
+        run: python3 cicd-metadata/scripts/resolve_source_ref.py --repository cicd-metadata
+
       - name: Require GH_SECRET
         run: |
           if [[ -z "${{ secrets.GH_SECRET }}" ]]; then
@@ -73,6 +83,11 @@ jobs:
           fetch-depth: 1
           path: monorepo
 
+      - name: Freeze checked out source commit
+        id: source
+        working-directory: monorepo
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Parse release matrix
         id: meta
         working-directory: monorepo
@@ -103,7 +118,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.matrix) }}
     env:
       MONOREPO: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo || 'Zero-Day-Echo/AIExamPlatform' }}
-      CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.monorepo_ref || 'main' }}
+      CHECKOUT_REF: ${{ needs.prepare.outputs.source_commit }}
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
