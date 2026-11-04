@@ -20,13 +20,21 @@ def source_ref(repository, tag, fallback='main'):
     return fallback
 
 
+def pushed_source_ref(repository, tag, fallback='main'):
+    # checkout@v4 may fetch a tag's peeled commit directly into refs/tags/*.
+    # Fetch the actual tag object before reading its annotation.
+    subprocess.run(['git', '-C', str(repository), 'fetch', '--force', '--no-tags',
+                    'origin', f'refs/tags/{tag}:refs/tags/{tag}'], check=True)
+    return source_ref(repository, tag, fallback)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repository', type=Path, required=True)
     args = parser.parse_args()
     ref = os.environ.get('CHECKOUT_REF', 'main')
     if os.environ.get('GITHUB_EVENT_NAME') == 'push':
-        ref = source_ref(args.repository, os.environ['RELEASE_TAG'], ref)
+        ref = pushed_source_ref(args.repository, os.environ['RELEASE_TAG'], ref)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
         output.write('checkout_ref=' + ref + '\n')
     with open(os.environ['GITHUB_ENV'], 'a') as environment:

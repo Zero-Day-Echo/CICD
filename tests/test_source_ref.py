@@ -35,3 +35,14 @@ class SourceReferenceTests(unittest.TestCase):
     def test_bad_pin_cannot_silently_release_a_different_source(self):
         self.git('-c', 'tag.gpgsign=false', 'tag', '-a', 'broken-v1', '-m', 'source-ref: moving-branch')
         with self.assertRaises(ValueError): module.source_ref(self.repo, 'broken-v1')
+
+    def test_peeled_ci_tag_is_replaced_with_its_remote_annotation(self):
+        sha = '12345678' * 5
+        remote = self.repo / 'remote.git'
+        subprocess.run(['git', 'init', '-q', '--bare', str(remote)], check=True)
+        self.git('remote', 'add', 'origin', str(remote))
+        self.git('-c', 'tag.gpgsign=false', 'tag', '-a', 'appbackend-v110408', '-m', 'source-ref: ' + sha)
+        self.git('push', 'origin', 'appbackend-v110408')
+        self.git('tag', '-d', 'appbackend-v110408'); self.git('tag', 'appbackend-v110408')
+        self.assertEqual(module.source_ref(self.repo, 'appbackend-v110408'), 'main')
+        self.assertEqual(module.pushed_source_ref(self.repo, 'appbackend-v110408'), sha)
